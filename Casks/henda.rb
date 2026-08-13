@@ -3,7 +3,7 @@
 
 cask "henda" do
   version "0.1.5"
-  sha256 "84c89f4c189872f51c6663c053fd189e75fb8f9aaf78fc6194e57023970030f3"
+  sha256 "fde492b04e99e656ba25649bc51726e56c0ce48864a1e2b180c61c478281fc27"
 
   url "https://github.com/arielmendz/henda/releases/download/v#{version}/Henda-#{version}.zip"
   name "Henda"
