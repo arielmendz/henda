@@ -1,1 +1,213 @@
-# henda
+# Henda
+
+Henda is a tiny macOS menu-bar window manager. It watches the visible windows in
+your current workspace, maximizes the lone window on a display, and distributes
+multiple windows in an overlapping diagonal cascade. Two windows use 95% of
+their maximized size; three or more use 90%.
+
+## Quickstart
+
+### Standard installation
+
+Henda requires macOS 13 or newer and [Homebrew](https://brew.sh/). Install and
+open the latest release with:
+
+```sh
+brew tap arielmendz/henda https://github.com/arielmendz/henda.git
+brew install --cask arielmendz/henda/henda
+open /Applications/Henda.app
+```
+
+Henda runs only in the menu bar. Select its two-window icon, then complete the
+one-time setup:
+
+1. Select **Grant Accessibility Access**.
+2. In **System Settings → Privacy & Security → Accessibility**, enable Henda.
+3. Return to Henda and select **Check Accessibility Access**.
+
+Henda starts arranging windows automatically as soon as access is granted. Use
+**Arrange Automatically** to pause or resume watching, **Cascade Windows** to
+arrange on demand, and **Start at Login** if you want Henda to launch with macOS.
+
+> [!IMPORTANT]
+> Current releases are ad-hoc signed and are not notarized by Apple, so
+> Gatekeeper may block the first launch. Do not disable Gatekeeper globally.
+> See [First launch](#first-launch) for details.
+
+## Features
+
+- Uses a compact native macOS menu with standard clickable items
+- Includes a custom two-window Henda application icon
+- Arranges the visible, movable windows in the current macOS Space,
+  independently on each display
+- Maximizes a window when it is the only managed window on its display
+- Keeps two windows at 95% and three or more at 90% of maximized size
+- Animates window movement and resizing with a short eased transition
+- Arranges automatically by default and remembers when automatic arrangement
+  is paused
+- Responds to windows opening, closing, minimizing, being restored, or moving
+  between displays
+- Recalculates layouts when apps are hidden, Spaces change, or displays are
+  reconfigured
+- Uses accessibility and workspace notifications for fast updates, with a
+  periodic reconciliation for missed events
+- Can launch automatically when you log in to macOS
+- Keeps windows clear of the menu bar and Dock by using each display's visible
+  workspace
+- Lets you trigger an arrangement manually from the menu bar
+- Ignores minimized, full-screen, hidden, and non-resizable windows
+- Ignores windows on other macOS Spaces
+
+## Requirements
+
+- macOS 13 Ventura or newer
+- Accessibility permission for arranging windows
+- Homebrew for the standard installation, or Swift 5.10 or newer to build from
+  source
+
+## Installation details
+
+Henda is distributed from this repository as a Homebrew Cask. The
+[standard installation](#standard-installation) places it in `/Applications`.
+
+### Installation without administrator access
+
+Install the app in your user Applications directory when you cannot write to
+`/Applications`:
+
+```sh
+mkdir -p "$HOME/Applications"
+brew tap arielmendz/henda https://github.com/arielmendz/henda.git
+brew install --cask --appdir="$HOME/Applications" arielmendz/henda/henda
+open "$HOME/Applications/Henda.app"
+```
+
+Use `$HOME/Applications`, not `~/Applications`, as the value of Homebrew's
+[`--appdir`](https://docs.brew.sh/Manpage.html#global-cask-options) option. Some
+shells preserve the tilde literally when it appears after `=`.
+
+If Henda was previously installed in another location, move the Homebrew-managed
+installation with:
+
+```sh
+brew reinstall --cask --appdir="$HOME/Applications" henda
+```
+
+### First launch
+
+> [!IMPORTANT]
+> Current releases are ad-hoc signed and are not notarized by Apple. Gatekeeper
+> may block them even though Homebrew verifies the archive checksum. Do not
+> disable Gatekeeper globally. A normal, warning-free installation requires a
+> [Developer ID-signed and notarized](https://developer.apple.com/support/developer-id/)
+> Henda release.
+
+When Henda opens, its two-window icon appears in the menu bar. Complete the
+one-time setup:
+
+1. Select **Grant Accessibility Access** from the Henda menu.
+2. In **System Settings → Privacy & Security → Accessibility**, enable the exact
+   Henda copy you installed.
+3. Return to Henda and select **Check Accessibility Access**.
+4. Optionally enable **Start at Login**. If macOS asks for approval, enable Henda
+   under **System Settings → General → Login Items**.
+
+Because current releases use an ad-hoc signature, macOS may require Accessibility
+access to be granted again after an upgrade. Developer ID signing will also fix
+this upgrade experience by giving releases a stable signing identity.
+
+### Upgrade and uninstall
+
+Homebrew remembers the application directory used for the original install:
+
+```sh
+brew update
+brew upgrade --cask henda
+brew uninstall --cask henda
+```
+
+Disable **Start at Login** from the Henda menu before uninstalling so macOS can
+unregister the login item cleanly.
+
+To also remove Henda's saved preferences:
+
+```sh
+brew uninstall --cask --zap henda
+```
+
+## Build and run
+
+Building from source requires Swift 5.10 or newer. Xcode Command Line Tools is
+sufficient; the project has no third-party dependencies.
+
+```sh
+make test
+make app
+open build/Henda.app
+```
+
+Henda appears in the menu bar. On first launch, select **Grant Accessibility
+Access**, enable Henda in **System Settings → Privacy & Security → Accessibility**,
+then return to Henda and select **Check Accessibility Access**.
+
+Select **Start at Login** in the Henda menu to have macOS launch the app on
+subsequent logins. If macOS requires approval, Henda opens **System Settings →
+General → Login Items** so you can enable it there.
+
+To copy it into Applications:
+
+```sh
+make install
+```
+
+For a non-administrator user:
+
+```sh
+make install APPDIR="$HOME/Applications"
+```
+
+The app is ad-hoc signed for local use. A distributable release can later replace
+that step with Developer ID signing and notarization.
+
+## Development
+
+This repository uses Swift Package Manager:
+
+```sh
+swift build
+make test
+```
+
+## Release
+
+Releases are built as universal Apple Silicon and Intel applications. Update the
+version in `support/Info.plist`, commit it, and push a matching tag:
+
+```sh
+VERSION=0.1.6
+git tag "v${VERSION}"
+git push origin "v${VERSION}"
+```
+
+The release workflow tests the project, publishes `Henda-<version>.zip`, and
+updates the version and SHA-256 in `Casks/henda.rb`.
+
+Before Homebrew installation can provide a polished first-run experience, the
+release workflow must sign Henda with a stable Developer ID Application
+certificate, enable the hardened runtime, submit the archive to Apple's notary
+service, and staple the resulting ticket. After that is configured, verify each
+release with `spctl` and remove the unsigned-release caveats from the Cask and
+this README.
+
+## License
+
+Copyright © 2026 Ariel Mendez.
+
+Henda—including its source code, documentation, and project-owned icons and
+assets—is licensed under the [GNU General Public License v3.0 only](LICENSE).
+You may use, study, modify, distribute, and sell Henda. If you distribute a
+modified version or derivative work, you must make its corresponding source
+available to its recipients under the same GPLv3 terms. Changes used only
+privately or within an organization do not have to be published.
+
+Contributions to this repository are accepted under `GPL-3.0-only`.

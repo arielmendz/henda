@@ -1,0 +1,92 @@
+# SPDX-FileCopyrightText: 2026 Ariel Mendez
+# SPDX-License-Identifier: GPL-3.0-only
+
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+  # Builds the same universal archive and uploads it as an artifact without
+  # publishing anything, so a CI-built binary can be launched and verified
+  # before a tag is pushed.
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: macos-15
+
+    steps:
+      - name: Check out the release tag
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Read and validate the version
+        id: version
+        shell: bash
+        run: |
+          plist_version=$(plutil -extract CFBundleShortVersionString raw support/Info.plist)
+          if [[ "$GITHUB_EVENT_NAME" != "push" ]]; then
+            echo "value=$plist_version" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          version="${GITHUB_REF_NAME#v}"
+          if [[ ! "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "Tag must use semantic versioning, for example v0.1.3" >&2
+            exit 1
+          fi
+          if [[ "$version" != "$plist_version" ]]; then
+            echo "Tag version $version does not match Info.plist version $plist_version" >&2
+            exit 1
+          fi
+          echo "value=$version" >> "$GITHUB_OUTPUT"
+
+      - name: Run layout tests
+        run: swift run HendaLayoutTests
+
+      - name: Build the universal application archive
+        run: ./scripts/build-release.sh "${{ steps.version.outputs.value }}"
+
+      - name: Upload the archive for verification
+        if: github.event_name != 'push'
+        uses: actions/upload-artifact@v4
+        with:
+          name: Henda-${{ steps.version.outputs.value }}-unreleased
+          path: dist/Henda-${{ steps.version.outputs.value }}.zip
+          if-no-files-found: error
+
+      - name: Publish the GitHub release
+        if: github.event_name == 'push'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          archive="dist/Henda-${{ steps.version.outputs.value }}.zip"
+          gh release create "$GITHUB_REF_NAME" \
+            "$archive#Henda ${{ steps.version.outputs.value }}" \
+            --repo "$GITHUB_REPOSITORY" \
+            --title "Henda ${{ steps.version.outputs.value }}" \
+            --generate-notes \
+            --verify-tag
+
+      - name: Update the Homebrew Cask checksum
+        if: github.event_name == 'push'
+        shell: bash
+        run: |
+          archive="dist/Henda-${{ steps.version.outputs.value }}.zip"
+          checksum=$(shasum -a 256 "$archive" | awk '{print $1}')
+          git checkout -B main origin/main
+          ./scripts/update-cask.sh "${{ steps.version.outputs.value }}" "$checksum"
+
+          if git diff --quiet -- Casks/henda.rb; then
+            exit 0
+          fi
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add Casks/henda.rb
+          git commit -m "Update Homebrew Cask for $GITHUB_REF_NAME"
+          git push origin main
